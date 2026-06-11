@@ -105,19 +105,52 @@ export async function PUT(req: Request) {
   return NextResponse.json({ success: true, totalCreated: account.seedData.length });
 }
 
-// DELETE: delete a specific memory
+// DELETE: delete a specific memory OR all memories for an account
+// Single:  DELETE /api/memories?id=<memoryId>
+// All:     DELETE /api/memories?all=true&accountId=<accountId>
 export async function DELETE(req: Request) {
-  const { memoryId } = await req.json();
-  if (!memoryId) {
-    return NextResponse.json({ error: "memoryId is required" }, { status: 400 });
-  }
+  const url = new URL(req.url);
+  const all = url.searchParams.get("all") === "true";
+  const accountId = url.searchParams.get("accountId");
+  const memoryId = url.searchParams.get("id");
 
   const client = getMemoryClient();
+
+  // ── Clear all memories for an account ──
+  if (all && accountId) {
+    try {
+      const results = await client.memories.search({
+        query: "account deal stakeholder information facts",
+        user_id: accountId,
+        limit: 100,
+      });
+      const ids = (results.data ?? []).map((m) => m.id);
+      await Promise.all(ids.map((id) => client.memories.delete(id)));
+      return NextResponse.json({ success: true, deleted: ids.length });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  // ── Delete a single memory ──
+  // Support both query param ?id= and legacy JSON body
+  let id = memoryId;
+  if (!id) {
+    try {
+      const body = await req.json();
+      id = body.memoryId;
+    } catch { /* no body */ }
+  }
+  if (!id) {
+    return NextResponse.json({ error: "id or memoryId is required" }, { status: 400 });
+  }
   try {
-    await client.memories.delete(memoryId);
+    await client.memories.delete(id);
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

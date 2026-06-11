@@ -176,14 +176,30 @@ export default function HomePage() {
 
   const handleDeleteMemory = async (memoryId: string) => {
     try {
-      await fetch("/api/memories", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memoryId }),
-      });
+      await fetch(`/api/memories?id=${memoryId}`, { method: "DELETE" });
       setMemories((prev) => prev.filter((m) => m.id !== memoryId));
     } catch {
       showToast("Delete failed", "error");
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!activeAccount || memories.length === 0) return;
+    const confirmed = window.confirm(
+      `Delete all ${memories.length} memories for ${activeAccount.name}? This cannot be undone.\n\nYou can re-load demo data afterwards.`
+    );
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`/api/memories?all=true&accountId=${activeAccount.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setMemories([]);
+        showToast(`✓ Cleared ${data.deleted} memories for ${activeAccount.name}`);
+      } else {
+        showToast(data.error || "Clear failed", "error");
+      }
+    } catch {
+      showToast("Clear failed", "error");
     }
   };
 
@@ -447,9 +463,16 @@ export default function HomePage() {
               {memories.length > 0 && <span className="memory-count">{memories.length}</span>}
             </div>
             {activeAccount && (
-              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => loadMemories(activeAccount.id)} title="Refresh">
-                <RefreshCw size={13} />
-              </button>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button className="btn btn-ghost btn-icon btn-sm" onClick={() => loadMemories(activeAccount.id)} title="Refresh memories">
+                  <RefreshCw size={13} />
+                </button>
+                {memories.length > 0 && (
+                  <button className="btn btn-ghost btn-icon btn-sm" onClick={handleClearAll} title="Clear all memories" style={{ color: "var(--red)" }}>
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
